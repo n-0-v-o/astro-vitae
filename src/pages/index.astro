@@ -63,6 +63,8 @@ const sections = [
         box-sizing: border-box;
       }
       html {
+        /* 声明页面为浅色配色，避免浏览器自动深色模式强制反色 */
+        color-scheme: light;
         scroll-behavior: smooth;
         /* 锚点定位时预留顶栏高度，避免标题被顶栏遮住 */
         scroll-padding-top: var(--nav-h);
@@ -70,6 +72,7 @@ const sections = [
       body {
         font-family: system-ui, sans-serif;
         color: #1f2937;
+        background: #fff;
       }
 
       .navbar {
