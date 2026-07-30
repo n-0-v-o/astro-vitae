@@ -1,8 +1,6 @@
 # astro-vitae
 
-基于 [Astro](https://astro.build/) 的单页个人主页，零额外依赖，计划部署至 GitHub Pages。
-
-![页面预览](docs/preview.png)
+基于 [Astro](https://astro.build/) 的单页个人主页，零额外依赖，部署于 GitHub Pages：https://n-0-v-o.github.io/astro-vitae/
 
 ## 功能
 
@@ -14,8 +12,8 @@
 
 ```
 src/pages/index.astro   # 单文件页面：板块数据、结构、样式、滚动高亮脚本
-astro.config.mjs        # Astro 配置（部署 Pages 时需补 site/base）
-docs/preview.png        # 页面预览图
+astro.config.mjs        # Astro 配置（site/base 指向 GitHub Pages）
+.github/workflows/      # 推送 main 自动构建并部署 Pages
 ```
 
 板块由 `index.astro` 顶部的 `sections` 数组驱动，增删板块只需修改该数组。
@@ -31,4 +29,3 @@ npm run build    # 构建静态文件到 dist/
 ## 待办
 
 - [ ] 替换各板块占位内容
-- [ ] 部署到 GitHub Pages（配置 `site`/`base` + Actions 工作流）
