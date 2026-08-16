@@ -1,5 +1,5 @@
 ---
-// 单页个人主页：顶栏 + 4 个板块，全页滚动锁定 + 视频播放
+// 单页个人主页：顶栏 + 4 个板块，全页滚动锁定 + 视频背景过渡
 const sections = [
   { id: 'about', label: '关于我' },
   { id: 'skills', label: '技能' },
@@ -31,31 +31,20 @@ const sections = [
             <h2>{s.label}</h2>
             <p>这里是「{s.label}」板块的内容占位，之后替换为正式内容。</p>
           </div>
-          {/* 第一部分：隐藏视频，用于提取帧作为背景 */}
-          {i === 0 && (
+          {/* 视频背景元素：第一部分和第二部分各一个 */}
+          {(i === 0 || i === 1) && (
             <video
-              id="bg-video"
+              class="bg-video"
+              data-section={i}
               src="/astro-vitae/菜单.mp4"
               muted
               preload="auto"
               playsinline
-              class="bg-video"
             />
           )}
         </section>
       ))}
     </main>
-
-    {/* 视频播放过渡层 */}
-    <div id="video-overlay" class="video-overlay">
-      <video
-        id="transition-video"
-        src="/astro-vitae/菜单.mp4"
-        muted
-        preload="auto"
-        playsinline
-      />
-    </div>
 
     {/* Canvas 用于提取视频帧 */}
     <canvas id="frame-canvas" style="display:none"></canvas>
@@ -77,48 +66,48 @@ const sections = [
         byId.get(targetId)?.classList.add('active');
       }
 
-      // 视频过渡相关
-      const videoOverlay = document.getElementById('video-overlay')!;
-      const transitionVideo = document.getElementById('transition-video') as HTMLVideoElement;
+      // 获取视频元素
+      const video0 = document.querySelector<HTMLVideoElement>('.bg-video[data-section="0"]')!;
+      const video1 = document.querySelector<HTMLVideoElement>('.bg-video[data-section="1"]')!;
       let lastSection = 0;
 
       // 检查是否需要播放视频过渡
       function checkVideoTransition(newSection: number) {
-        // 从第一部分到第二部分：正向播放视频
+        // 从第一部分到第二部分：播放第一部分的视频背景
         if (lastSection === 0 && newSection === 1) {
-          playTransitionVideo();
+          playVideoForward();
         }
-        // 从第二部分回到第一部分：倒放视频
+        // 从第二部分回到第一部分：倒放第一部分的视频
         if (lastSection === 1 && newSection === 0) {
-          playTransitionVideoReverse();
+          playVideoReverse();
         }
         lastSection = newSection;
       }
 
-      // 正向播放过渡视频
-      function playTransitionVideo() {
-        videoOverlay.classList.add('active');
-        transitionVideo.currentTime = 0;
-        transitionVideo.play();
+      // 正向播放视频（在第一部分作为背景）
+      function playVideoForward() {
+        video0.classList.add('playing');
+        video0.currentTime = 0;
+        video0.play();
 
-        transitionVideo.addEventListener('ended', function onEnd() {
-          transitionVideo.removeEventListener('ended', onEnd);
-          videoOverlay.classList.remove('active');
+        video0.addEventListener('ended', function onEnd() {
+          video0.removeEventListener('ended', onEnd);
+          video0.classList.remove('playing');
         }, { once: true });
       }
 
-      // 倒放过渡视频
-      function playTransitionVideoReverse() {
-        videoOverlay.classList.add('active');
-        transitionVideo.currentTime = transitionVideo.duration;
+      // 倒放视频（从第二部分返回第一部分时）
+      function playVideoReverse() {
+        video0.classList.add('playing');
+        video0.currentTime = video0.duration;
 
         const reverseInterval = setInterval(() => {
-          if (transitionVideo.currentTime <= 0.1) {
+          if (video0.currentTime <= 0.1) {
             clearInterval(reverseInterval);
-            videoOverlay.classList.remove('active');
+            video0.classList.remove('playing');
             return;
           }
-          transitionVideo.currentTime -= 0.05;
+          video0.currentTime -= 0.05;
         }, 30);
       }
 
@@ -127,7 +116,7 @@ const sections = [
         if (index < 0 || index >= totalSections || isScrolling) return;
         isScrolling = true;
 
-        // 先检查视频过渡
+        // 检查视频过渡
         checkVideoTransition(index);
 
         currentSection = index;
@@ -140,7 +129,7 @@ const sections = [
         }, 800);
       }
 
-      // 拦截滚轮事件，实现全页锁定
+      // 拦截滚轮事件
       function handleWheel(e: WheelEvent) {
         e.preventDefault();
         if (isScrolling) return;
@@ -153,7 +142,7 @@ const sections = [
       }
       window.addEventListener('wheel', handleWheel, { passive: false });
 
-      // 支持键盘上下箭头
+      // 键盘支持
       window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown' || e.key === 'PageDown') {
           e.preventDefault();
@@ -178,7 +167,6 @@ const sections = [
       highlightNav(0);
 
       // ===== 视频帧提取与背景设置 =====
-      const bgVideo = document.getElementById('bg-video') as HTMLVideoElement;
       const canvas = document.getElementById('frame-canvas') as HTMLCanvasElement;
       const ctx = canvas.getContext('2d')!;
 
@@ -196,19 +184,15 @@ const sections = [
         });
       }
 
-      // 视频加载后提取第一帧和最后一帧作为背景
-      bgVideo.addEventListener('loadeddata', async () => {
-        // 提取第一帧（time=0）作为第一部分背景
-        const firstFrame = await captureFrame(bgVideo, 0);
-        sections[0].style.backgroundImage = `url(${firstFrame})`;
-        sections[0].style.backgroundSize = 'cover';
-        sections[0].style.backgroundPosition = 'center';
+      // 视频加载后提取帧作为静态背景
+      video0.addEventListener('loadeddata', async () => {
+        // 提取第一帧作为第一部分的静态背景
+        const firstFrame = await captureFrame(video0, 0);
+        sections[0].style.setProperty('--bg-image', `url(${firstFrame})`);
 
-        // 提取最后一帧作为第二部分背景
-        const lastFrame = await captureFrame(bgVideo, bgVideo.duration - 0.1);
-        sections[1].style.backgroundImage = `url(${lastFrame})`;
-        sections[1].style.backgroundSize = 'cover';
-        sections[1].style.backgroundPosition = 'center';
+        // 提取最后一帧作为第二部分的静态背景
+        const lastFrame = await captureFrame(video0, video0.duration - 0.1);
+        sections[1].style.setProperty('--bg-image', `url(${lastFrame})`);
       });
     </script>
 
@@ -297,7 +281,7 @@ const sections = [
         margin-bottom: 16px;
       }
 
-      /* 有背景图的部分文字改为白色 */
+      /* 有背景的部分文字改为白色 */
       #about .section-content,
       #skills .section-content {
         color: #fff;
@@ -308,14 +292,34 @@ const sections = [
         text-shadow: 0 1px 4px rgba(0,0,0,0.3);
       }
 
-      /* 第三、四部分保持原样式 */
+      /* 第三、四部分 */
       #projects,
       #contact {
         background: #f9fafb;
         max-width: none;
       }
 
-      /* 背景视频（隐藏，仅用于提取帧） */
+      /* 第一部分和第二部分：使用伪元素作为背景层 */
+      #about,
+      #skills {
+        --bg-image: none;
+      }
+
+      #about::before,
+      #skills::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: var(--bg-image);
+        background-size: cover;
+        background-position: center;
+        z-index: 0;
+      }
+
+      /* 视频背景 */
       .bg-video {
         position: absolute;
         top: 0;
@@ -323,38 +327,15 @@ const sections = [
         width: 100%;
         height: 100%;
         object-fit: cover;
-        z-index: 0;
+        z-index: 1;
         opacity: 0;
-        pointer-events: none;
-      }
-
-      /* 过渡视频覆盖层 */
-      .video-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 50;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 0, 0, 0.85);
-        opacity: 0;
-        pointer-events: none;
         transition: opacity 0.3s ease;
+        pointer-events: none;
       }
 
-      .video-overlay.active {
+      /* 视频播放时显示 */
+      .bg-video.playing {
         opacity: 1;
-        pointer-events: auto;
-      }
-
-      .video-overlay video {
-        max-width: 80%;
-        max-height: 80%;
-        border-radius: 8px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
       }
     </style>
   </body>
