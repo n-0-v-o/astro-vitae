@@ -1,5 +1,5 @@
 ---
-// 单页个人主页：顶栏 + 4 个板块，全页滚动锁定 + 视频背景过渡
+// 单页个人主页：PPT式板块切换 + 视频过渡动画
 const sections = [
   { id: 'about', label: '关于我' },
   { id: 'skills', label: '技能' },
@@ -26,38 +26,44 @@ const sections = [
 
     <main>
       {sections.map((s, i) => (
-        <section id={s.id} data-index={i}>
+        <section id={s.id} data-index={i} class={i === 0 ? 'active' : ''}>
           <div class="section-content">
             <h2>{s.label}</h2>
             <p>这里是「{s.label}」板块的内容占位，之后替换为正式内容。</p>
           </div>
-          {/* 视频背景元素：第一部分和第二部分各一个 */}
-          {(i === 0 || i === 1) && (
-            <video
-              class="bg-video"
-              data-section={i}
-              src="/astro-vitae/菜单.mp4"
-              muted
-              preload="auto"
-              playsinline
-            />
-          )}
         </section>
       ))}
+
+      {/* 视频过渡层：在第一部分和第二部分之间播放 */}
+      <div id="video-transition" class="video-transition">
+        <video
+          id="transition-video"
+          src="/astro-vitae/菜单.mp4"
+          muted
+          preload="auto"
+          playsinline
+        />
+      </div>
     </main>
 
     {/* Canvas 用于提取视频帧 */}
     <canvas id="frame-canvas" style="display:none"></canvas>
 
     <script>
-      // ===== 全页滚动锁定 =====
+      // ===== 板块管理 =====
       let currentSection = 0;
       const totalSections = 4;
-      let isScrolling = false;
+      let isAnimating = false;
 
       const sections = document.querySelectorAll<HTMLElement>('main section');
       const links = document.querySelectorAll<HTMLAnchorElement>('nav a[data-target]');
       const byId = new Map([...links].map((a) => [a.dataset.target, a]));
+
+      // 视频过渡元素
+      const videoTransition = document.getElementById('video-transition')!;
+      const transitionVideo = document.getElementById('transition-video') as HTMLVideoElement;
+      const canvas = document.getElementById('frame-canvas') as HTMLCanvasElement;
+      const ctx = canvas.getContext('2d')!;
 
       // 高亮导航项
       function highlightNav(index: number) {
@@ -66,109 +72,12 @@ const sections = [
         byId.get(targetId)?.classList.add('active');
       }
 
-      // 获取视频元素
-      const video0 = document.querySelector<HTMLVideoElement>('.bg-video[data-section="0"]')!;
-      const video1 = document.querySelector<HTMLVideoElement>('.bg-video[data-section="1"]')!;
-      let lastSection = 0;
-
-      // 检查是否需要播放视频过渡
-      function checkVideoTransition(newSection: number) {
-        // 从第一部分到第二部分：播放第一部分的视频背景
-        if (lastSection === 0 && newSection === 1) {
-          playVideoForward();
-        }
-        // 从第二部分回到第一部分：倒放第一部分的视频
-        if (lastSection === 1 && newSection === 0) {
-          playVideoReverse();
-        }
-        lastSection = newSection;
-      }
-
-      // 正向播放视频（在第一部分作为背景）
-      function playVideoForward() {
-        video0.classList.add('playing');
-        video0.currentTime = 0;
-        video0.play();
-
-        video0.addEventListener('ended', function onEnd() {
-          video0.removeEventListener('ended', onEnd);
-          video0.classList.remove('playing');
-        }, { once: true });
-      }
-
-      // 倒放视频（从第二部分返回第一部分时）
-      function playVideoReverse() {
-        video0.classList.add('playing');
-        video0.currentTime = video0.duration;
-
-        const reverseInterval = setInterval(() => {
-          if (video0.currentTime <= 0.1) {
-            clearInterval(reverseInterval);
-            video0.classList.remove('playing');
-            return;
-          }
-          video0.currentTime -= 0.05;
-        }, 30);
-      }
-
-      // 滚动到指定板块
-      function scrollToSection(index: number) {
-        if (index < 0 || index >= totalSections || isScrolling) return;
-        isScrolling = true;
-
-        // 检查视频过渡
-        checkVideoTransition(index);
-
-        currentSection = index;
-        sections[index].scrollIntoView({ behavior: 'smooth' });
+      // 显示指定板块
+      function showSection(index: number) {
+        sections.forEach((s) => s.classList.remove('active'));
+        sections[index].classList.add('active');
         highlightNav(index);
-
-        // 滚动动画结束后解锁
-        setTimeout(() => {
-          isScrolling = false;
-        }, 800);
       }
-
-      // 拦截滚轮事件
-      function handleWheel(e: WheelEvent) {
-        e.preventDefault();
-        if (isScrolling) return;
-
-        if (e.deltaY > 0) {
-          scrollToSection(currentSection + 1);
-        } else if (e.deltaY < 0) {
-          scrollToSection(currentSection - 1);
-        }
-      }
-      window.addEventListener('wheel', handleWheel, { passive: false });
-
-      // 键盘支持
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-          e.preventDefault();
-          scrollToSection(currentSection + 1);
-        } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-          e.preventDefault();
-          scrollToSection(currentSection - 1);
-        }
-      });
-
-      // 导航点击
-      links.forEach((a) => {
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          const targetId = a.dataset.target;
-          const index = [...sections].findIndex((s) => s.id === targetId);
-          if (index !== -1) scrollToSection(index);
-        });
-      });
-
-      // 初始高亮
-      highlightNav(0);
-
-      // ===== 视频帧提取与背景设置 =====
-      const canvas = document.getElementById('frame-canvas') as HTMLCanvasElement;
-      const ctx = canvas.getContext('2d')!;
 
       // 提取视频帧
       function captureFrame(video: HTMLVideoElement, time: number): Promise<string> {
@@ -184,16 +93,200 @@ const sections = [
         });
       }
 
-      // 视频加载后提取帧作为静态背景
-      video0.addEventListener('loadeddata', async () => {
-        // 提取第一帧作为第一部分的静态背景
-        const firstFrame = await captureFrame(video0, 0);
-        sections[0].style.setProperty('--bg-image', `url(${firstFrame})`);
+      // 设置第一部分和第二部分的背景
+      async function setupBackgrounds() {
+        // 等待视频加载
+        await new Promise<void>((resolve) => {
+          if (transitionVideo.readyState >= 2) {
+            resolve();
+          } else {
+            transitionVideo.addEventListener('loadeddata', () => resolve(), { once: true });
+          }
+        });
 
-        // 提取最后一帧作为第二部分的静态背景
-        const lastFrame = await captureFrame(video0, video0.duration - 0.1);
-        sections[1].style.setProperty('--bg-image', `url(${lastFrame})`);
+        // 提取第一帧作为第一部分背景
+        const firstFrame = await captureFrame(transitionVideo, 0);
+        sections[0].style.backgroundImage = `url(${firstFrame})`;
+        sections[0].style.backgroundSize = 'cover';
+        sections[0].style.backgroundPosition = 'center';
+
+        // 提取最后一帧作为第二部分背景
+        const lastFrame = await captureFrame(transitionVideo, transitionVideo.duration - 0.1);
+        sections[1].style.backgroundImage = `url(${lastFrame})`;
+        sections[1].style.backgroundSize = 'cover';
+        sections[1].style.backgroundPosition = 'center';
+      }
+
+      // 初始化背景
+      setupBackgrounds();
+
+      // ===== PPT式切换动画 =====
+
+      // 从第一部分切换到第二部分（正向播放视频）
+      async function transitionForward() {
+        if (isAnimating) return;
+        isAnimating = true;
+
+        // 1. 隐藏第一部分文字
+        sections[0].classList.add('hiding');
+
+        // 2. 等待文字隐藏动画完成
+        await new Promise((r) => setTimeout(r, 500));
+
+        // 3. 显示视频过渡层并播放视频
+        videoTransition.classList.add('active');
+        transitionVideo.currentTime = 0;
+        transitionVideo.play();
+
+        // 4. 等待视频播放完成
+        await new Promise<void>((resolve) => {
+          transitionVideo.addEventListener('ended', () => resolve(), { once: true });
+        });
+
+        // 5. 隐藏视频过渡层
+        videoTransition.classList.remove('active');
+
+        // 6. 切换到第二部分
+        currentSection = 1;
+        showSection(1);
+
+        // 7. 显示第二部分文字（带淡入效果）
+        sections[1].classList.add('showing');
+        await new Promise((r) => setTimeout(r, 500));
+        sections[1].classList.remove('showing');
+
+        // 清理第一部分的状态
+        sections[0].classList.remove('hiding');
+
+        isAnimating = false;
+      }
+
+      // 从第二部分切换回第一部分（倒放视频）
+      async function transitionBackward() {
+        if (isAnimating) return;
+        isAnimating = true;
+
+        // 1. 隐藏第二部分文字
+        sections[1].classList.add('hiding');
+
+        // 2. 等待文字隐藏动画完成
+        await new Promise((r) => setTimeout(r, 500));
+
+        // 3. 显示视频过渡层并倒放视频
+        videoTransition.classList.add('active');
+        transitionVideo.currentTime = transitionVideo.duration;
+
+        // 倒放视频
+        const reversePromise = new Promise<void>((resolve) => {
+          const interval = setInterval(() => {
+            if (transitionVideo.currentTime <= 0.1) {
+              clearInterval(interval);
+              resolve();
+              return;
+            }
+            transitionVideo.currentTime -= 0.05;
+          }, 30);
+        });
+
+        await reversePromise;
+
+        // 4. 隐藏视频过渡层
+        videoTransition.classList.remove('active');
+
+        // 5. 切换到第一部分
+        currentSection = 0;
+        showSection(0);
+
+        // 6. 显示第一部分文字
+        sections[0].classList.add('showing');
+        await new Promise((r) => setTimeout(r, 500));
+        sections[0].classList.remove('showing');
+
+        // 清理第二部分的状态
+        sections[1].classList.remove('hiding');
+
+        isAnimating = false;
+      }
+
+      // 普通板块切换（无动画）
+      function switchSection(index: number) {
+        if (isAnimating || index === currentSection) return;
+        currentSection = index;
+        showSection(index);
+      }
+
+      // ===== 事件处理 =====
+
+      // 滚轮事件
+      function handleWheel(e: WheelEvent) {
+        e.preventDefault();
+        if (isAnimating) return;
+
+        const goingDown = e.deltaY > 0;
+
+        // 在第一部分，向下滚动 -> 播放视频过渡到第二部分
+        if (currentSection === 0 && goingDown) {
+          transitionForward();
+          return;
+        }
+
+        // 在第二部分，向上滚动 -> 倒放视频回到第一部分
+        if (currentSection === 1 && !goingDown) {
+          transitionBackward();
+          return;
+        }
+
+        // 其他板块之间的普通切换
+        if (goingDown && currentSection < totalSections - 1) {
+          switchSection(currentSection + 1);
+        } else if (!goingDown && currentSection > 0) {
+          switchSection(currentSection - 1);
+        }
+      }
+      window.addEventListener('wheel', handleWheel, { passive: false });
+
+      // 键盘事件
+      window.addEventListener('keydown', (e) => {
+        if (isAnimating) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+          e.preventDefault();
+          if (currentSection === 0) {
+            transitionForward();
+          } else if (currentSection < totalSections - 1) {
+            switchSection(currentSection + 1);
+          }
+        } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+          e.preventDefault();
+          if (currentSection === 1) {
+            transitionBackward();
+          } else if (currentSection > 0) {
+            switchSection(currentSection - 1);
+          }
+        }
       });
+
+      // 导航点击
+      links.forEach((a) => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetId = a.dataset.target;
+          const index = [...sections].findIndex((s) => s.id === targetId);
+          if (index !== -1) {
+            // 如果涉及第一部分和第二部分之间的切换，使用动画
+            if (currentSection === 0 && index === 1) {
+              transitionForward();
+            } else if (currentSection === 1 && index === 0) {
+              transitionBackward();
+            } else {
+              switchSection(index);
+            }
+          }
+        });
+      });
+
+      // 初始高亮
+      highlightNav(0);
     </script>
 
     <style>
@@ -212,7 +305,7 @@ const sections = [
       body {
         font-family: system-ui, sans-serif;
         color: #1f2937;
-        background: #fff;
+        background: #000;
         overflow: hidden;
       }
 
@@ -256,24 +349,55 @@ const sections = [
       main {
         height: 100vh;
         overflow: hidden;
+        position: relative;
       }
 
       main section {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
         height: 100vh;
         padding: calc(var(--nav-h) + 40px) 24px 40px;
-        max-width: 800px;
-        margin: 0 auto;
-        position: relative;
-        overflow: hidden;
         display: flex;
         align-items: center;
         justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        background-color: #f9fafb;
+        background-size: cover;
+        background-position: center;
+      }
+
+      main section.active {
+        opacity: 1;
+        visibility: visible;
       }
 
       .section-content {
         position: relative;
         z-index: 2;
         text-align: center;
+        max-width: 800px;
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+
+      /* 隐藏文字动画 */
+      main section.hiding .section-content {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      /* 显示文字动画 */
+      main section.showing .section-content {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      main section.active:not(.hiding) .section-content {
+        opacity: 1;
+        transform: translateY(0);
       }
 
       main section h2 {
@@ -281,7 +405,7 @@ const sections = [
         margin-bottom: 16px;
       }
 
-      /* 有背景的部分文字改为白色 */
+      /* 第一部分和第二部分：有背景图时文字为白色 */
       #about .section-content,
       #skills .section-content {
         color: #fff;
@@ -292,50 +416,28 @@ const sections = [
         text-shadow: 0 1px 4px rgba(0,0,0,0.3);
       }
 
-      /* 第三、四部分 */
-      #projects,
-      #contact {
-        background: #f9fafb;
-        max-width: none;
-      }
-
-      /* 第一部分和第二部分：使用伪元素作为背景层 */
-      #about,
-      #skills {
-        --bg-image: none;
-      }
-
-      #about::before,
-      #skills::before {
-        content: '';
+      /* 视频过渡层 */
+      .video-transition {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background-image: var(--bg-image);
-        background-size: cover;
-        background-position: center;
-        z-index: 0;
+        z-index: 50;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
       }
 
-      /* 视频背景 */
-      .bg-video {
-        position: absolute;
-        top: 0;
-        left: 0;
+      .video-transition.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .video-transition video {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        z-index: 1;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        pointer-events: none;
-      }
-
-      /* 视频播放时显示 */
-      .bg-video.playing {
-        opacity: 1;
       }
     </style>
   </body>
